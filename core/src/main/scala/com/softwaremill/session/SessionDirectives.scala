@@ -167,7 +167,7 @@ trait OneOffSessionDirectives {
           case Some(_) => respondWithHeader(sc.clientSessionManager.createHeaderWithValue(""))
         }
 
-      case Some(_) => deleteCookie(sc.clientSessionManager.createCookieWithValue("").copy(maxAge = None))
+      case Some(_) => deleteCookie(sc.clientSessionManager.createCookieWithValue(""))
     }
   }
 }
@@ -216,7 +216,7 @@ trait RefreshableSessionDirectives { this: OneOffSessionDirectives =>
       case None => pass
       case Some((v, setSt)) =>
         val deleteTokenOnClient = setSt match {
-          case CookieST => deleteCookie(sc.refreshTokenManager.createCookie("").copy(maxAge = None))
+          case CookieST => deleteCookie(sc.refreshTokenManager.createCookie(""))
           case HeaderST => respondWithHeader(sc.refreshTokenManager.createHeader(""))
         }
 

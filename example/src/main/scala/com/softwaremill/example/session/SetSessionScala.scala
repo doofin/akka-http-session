@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
+import com.softwaremill.example.ScalaExample.MyScalaSession.MyScalaSessionData
 import com.softwaremill.session.CsrfDirectives._
 import com.softwaremill.session.CsrfOptions._
 import com.softwaremill.session.SessionDirectives._
@@ -21,12 +22,12 @@ object SetSessionScala extends App with StrictLogging {
 
   val sessionConfig = SessionConfig.default(
     "c05ll3lesrinf39t7mc5h6un6r0c69lgfno69dsak3vabeqamouq4328cuaekros401ajdpkh60rrtpd8ro24rbuqmgtnd1ebag6ljnb65i8a55d482ok7o0nch0bfbe")
-  implicit val sessionManager = new SessionManager[MyScalaSession](sessionConfig)
-  implicit val refreshTokenStorage = new InMemoryRefreshTokenStorage[MyScalaSession] {
+  implicit val sessionManager = new SessionManager[MyScalaSessionData](sessionConfig)
+  implicit val refreshTokenStorage = new InMemoryRefreshTokenStorage[MyScalaSessionData] {
     def log(msg: String) = logger.info(msg)
   }
 
-  def mySetSession(v: MyScalaSession) = setSession(refreshable, usingCookies, v)
+  def mySetSession(v: MyScalaSessionData) = setSession(refreshable, usingCookies, v)
 
   val myRequiredSession = requiredSession(refreshable, usingCookies)
   val myInvalidateSession = invalidateSession(refreshable, usingCookies)
@@ -38,7 +39,7 @@ object SetSessionScala extends App with StrictLogging {
           post {
             entity(as[String]) { body =>
               logger.info(s"Logging in $body")
-              mySetSession(MyScalaSession(body)) {
+              mySetSession(MyScalaSessionData(body)) {
                 setNewCsrfToken(checkHeader) { ctx =>
                   ctx.complete("ok")
                 }
