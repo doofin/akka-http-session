@@ -17,7 +17,6 @@ import com.typesafe.scalalogging.StrictLogging
 import scala.io.StdIn
 import scala.util.Try
 
-
 object ScalaExample extends App with StrictLogging {
   object MyScalaSession {
     case class MyScalaSessionData(username: String)
@@ -47,6 +46,37 @@ object ScalaExample extends App with StrictLogging {
 
   val sessDirec: Directive1[MyScalaSessionData] = requiredSession(refreshable, usingCookies)
   val myInvalidateSession = invalidateSession(refreshable, usingCookies)
+  val loginR = path("do_login") {
+    post {
+      entity(as[String]) { body =>
+        logger.info(s"Logging in $body")
+
+        mySetSession(MyScalaSession.MyScalaSessionData(body)) {
+          setNewCsrfToken(checkHeader) { ctx =>
+            ctx.complete("ok")
+          }
+        }
+      }
+    }
+  }
+  val logoutR = path("do_logout") {
+    post {
+      sessDirec { session =>
+        myInvalidateSession { ctx =>
+          logger.info(s"Logging out $session")
+          ctx.complete("ok")
+        }
+      }
+    }
+  }
+  val loggedInR = path("current_login") {
+    get {
+      sessDirec { session => ctx =>
+        logger.info("Current session: " + session)
+        ctx.complete(session.username)
+      }
+    }
+  }
 
   val routes =
     path("") {
@@ -54,39 +84,11 @@ object ScalaExample extends App with StrictLogging {
     } ~
       randomTokenCsrfProtection(checkHeader) {
         pathPrefix("api") {
-          path("do_login") {
-            post {
-              entity(as[String]) { body =>
-                logger.info(s"Logging in $body")
-
-                mySetSession(MyScalaSession.MyScalaSessionData(body)) {
-                  setNewCsrfToken(checkHeader) { ctx =>
-                    ctx.complete("ok")
-                  }
-                }
-              }
-            }
-          } ~
+          loginR ~
             // This should be protected and accessible only when logged in
-            path("do_logout") {
-              post {
-                sessDirec { session =>
-                  myInvalidateSession { ctx =>
-                    logger.info(s"Logging out $session")
-                    ctx.complete("ok")
-                  }
-                }
-              }
-            } ~
+            logoutR ~
             // This should be protected and accessible only when logged in
-            path("current_login") {
-              get {
-                sessDirec { session =>ctx =>
-                  logger.info("Current session: " + session)
-                  ctx.complete(session.username)
-                }
-              }
-            }
+            loggedInR
         } ~
           pathPrefix("site") {
             getFromResourceDirectory("")
