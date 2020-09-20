@@ -3,7 +3,7 @@ package com.softwaremill.example
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.server.Directive1
+import akka.http.scaladsl.server.{Directive0, Directive1}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import com.softwaremill.example.ScalaExample.MyScalaSession.MyScalaSessionData
@@ -14,18 +14,17 @@ import com.softwaremill.session.SessionOptions._
 import com.softwaremill.session._
 import com.typesafe.scalalogging.StrictLogging
 
-import scala.io.StdIn
 import scala.util.Try
 
 object ScalaExample extends App with StrictLogging {
   object MyScalaSession {
     case class MyScalaSessionData(username: String)
     implicit def serializer: SessionSerializer[MyScalaSessionData, String] =
-      new SingleValueSessionSerializer(_.username, { un: String =>
+      new SingleValueSessionSerializer[MyScalaSessionData, String](_.username, { un: String =>
         Try {
           MyScalaSessionData(un)
         }
-      })
+      })(SessionSerializer.stringToStringSessionSerializer)
   }
 
   implicit val system = ActorSystem("example")
@@ -42,18 +41,20 @@ object ScalaExample extends App with StrictLogging {
     def log(msg: String) = logger.info(msg)
   }
 
-  def mySetSession(v: MyScalaSessionData) = setSession(refreshable, usingCookies, v)
+//  private val myRefs1 = refreshable
+  private val myRefs = refreshable(sessionManager, refreshTokenStorage, dispatcher)
+  val setSessionDirec: MyScalaSessionData => Directive0 = setSession(myRefs, usingCookies, _)
+  val sessDirec: Directive1[MyScalaSessionData] = requiredSession(myRefs, usingCookies)
+  val invalidateSessDirec = invalidateSession(myRefs, usingCookies)
 
-  val sessDirec: Directive1[MyScalaSessionData] = requiredSession(refreshable, usingCookies)
-  val myInvalidateSession = invalidateSession(refreshable, usingCookies)
   val loginR = path("do_login") {
     post {
       entity(as[String]) { body =>
         logger.info(s"Logging in $body")
 
-        mySetSession(MyScalaSession.MyScalaSessionData(body)) {
-          setNewCsrfToken(checkHeader) { ctx =>
-            ctx.complete("ok")
+        setSessionDirec(MyScalaSession.MyScalaSessionData(body)) {
+          setNewCsrfToken(checkHeader) {
+            complete("ok")
           }
         }
       }
@@ -62,18 +63,18 @@ object ScalaExample extends App with StrictLogging {
   val logoutR = path("do_logout") {
     post {
       sessDirec { session =>
-        myInvalidateSession { ctx =>
+        invalidateSessDirec {
           logger.info(s"Logging out $session")
-          ctx.complete("ok")
+          complete("ok")
         }
       }
     }
   }
   val loggedInR = path("current_login") {
     get {
-      sessDirec { session => ctx =>
+      sessDirec { session =>
         logger.info("Current session: " + session)
-        ctx.complete(session.username)
+        complete(session.username)
       }
     }
   }
